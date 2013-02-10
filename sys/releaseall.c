@@ -13,6 +13,8 @@ int releaseall(int numlocks, int ldes1) {
     register struct lentry *lptr;
     int i;
     int lock;
+    int firstwrite;
+    int firstread;
 
     // Disable interrupts - needs to be atomic
     disable(ps);
@@ -23,21 +25,107 @@ int releaseall(int numlocks, int ldes1) {
 
         lock = ldes1[i];
         lptr = &locks[lock];
+        firstwrite = 0;
+        firstread  = 0;
 
         if (isbadlock(lock) || lptr->lstate==LFREE) {
             restore(ps);
             return(SYSERR);
         }
 
-        // Increment lock counter and decrement type counter
-        lptr->lcnt++;
-        if (lptr->ltype == WRITE)
+        // Update the count for this resource
+        if (lptr->nw == 1)
             lptr->nw--;
-        if (lptr->ltype == READ)
+        else
             lptr->nr--;
 
-
         // What is the current state of the resource? Possibilities are:
+        //
+        //  1 - There are still readers with access. Let all readers
+        //      with priority higher than highest priority writer in.
+        //  2 - No one has access. Select highest priority process in
+        //      wait queue.
+
+        // State 1 - 
+        if (lptr->nr != 0 && lptr->nw == 0) {
+
+            // Since priority goes from head (lower priority) to
+            // tail (higher priority) we will iterate backwards until
+            // we find a waiting WRITE. All READs we encounter before
+            // then are READs with higher priority than the highest
+            // priority WRITE. 
+            item = q[lptr->lqtail].qprev;
+            while (item != lptr->lqhead) { 
+                if (q[item].qtype == WRITE)
+                    break; 
+                
+                // This a read with higher priority than highest
+                // priority write. dequeue from lock queue and make it
+                // ready to be scheduled.
+                lptr->nr++;
+                dequeue(item);
+                ready(item, RESCHYES);
+
+                item = q[item].qprev;
+            }
+            restore(ps);
+            return(OK);
+        }
+
+        // State 2 - Select highest priority process. If waiting
+        // READs/WRITEs have same priority then select READ. 
+        if (lptr->nr == 0 && lptr->nw == 0) {
+
+            // If there are no waiting procs then nothing to do
+            if (isempty(lptr->lqhead)) {
+                restore(ps);
+                return(OK);
+            }
+
+            // Choose highest priority waiting proc.
+            item = q[lptr->lqtail].qprev;
+
+            // Are there multiple with the same priority? If not, no
+            // more to do.
+            if (q[item].qkey != q[q[item].qprev].qkey)
+                break;
+
+            // Is one of the highest priority waiting procs a write?
+            // If not, no more to do.
+            while (q[item].qkey == q[q[item].qprev].qkey) { 
+                if (q[item].qtype == WRITE)
+                    firstwrite = firstwrite ? firstwrite : item;
+                else
+                    firstread = firstread ? firstread : item;
+                item = q[item].qprev;
+            }
+            if (!firstwrite)
+                break;
+
+            // Ok, we have a write with equal priority to highest
+            // priority read. If this write has been sidelined 3 times
+            // then choose the write. Else choose the read.
+            if (something)
+                item = firstwrite;
+            else {
+                item = firstread;
+                increment something.
+            }
+                
+
+
+        }
+
+
+
+
+
+
+
+
+
+
+
         //
         //      Available               Type
         //      -----------------     ----------

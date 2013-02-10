@@ -12,6 +12,7 @@ int lock(int ldes1, int type, int priority) {
 
     int ldes1 = lock;
     int item;
+    int wait = 0;
 
     // 1) The lock is free. No process owns lock. 
     //      - The requesting process gets the lock and sets the type 
@@ -56,6 +57,81 @@ int lock(int ldes1, int type, int priority) {
         restore(ps);
         return(SYSERR);
     }
+
+    // What is the current state of the resource?
+    //
+    //      Available               Type
+    //      -----------------     ----------
+    //  1 -  Yes  (nr == 0, nw == 0)  N/A
+    //  2 -  No   (nr == 0, nw == 1)  Write
+    //  3 -  Maybe(nr != 0, nw == 0)  Read
+
+    // State 1 - Lock is available. No need to wait.
+    if (lptr->nr == 0 && lptr->nw == 0)
+        wait = 0;
+
+    // State 2 - Write already has lock. Add to queue and wait. 
+    if (lptr->nr == 0 && lptr->nw == 1)
+        wait = 1;
+
+    // State 3 - Read already has lock. We may be able to grant the
+    //           new process access if:
+    //
+    //              - There is not a higher priority writer waiting
+    //              - A reader has not been given access over an
+    //                equal priority writer 3 times in a row (starvation).
+    //
+    // Go through all items in the lock q. 
+    if (lptr->nr != 0 && lptr->nw == 0) {
+        item = q[lptr->lqhead].qnext;
+        while (priority < q[item].qkey) {
+            if (q[item].qtype == WRITE)
+                wait = 1; // There is a higher priority write waiting - must wait
+            item = q[item].qnext;
+        }
+        //XXX need to handle the starvation thing.
+    }
+
+
+    // Did we determine we needed to wait?
+    if (wait) {
+        pptr = &proctab[currpid];
+        pptr->pstate = PRLOCK;
+        pptr->plock = lock;
+        insert(currpid, lptr->lqhead, priority);
+        pptr->plockret = OK; // Will change to DELETED if lock gets deleted
+        resched();           // Context switch happens here
+        restore(ps);
+        return pptr->plockret;
+    }
+
+    // No need to wait. Increment the count and move on.
+    if (type == READ)
+        lptr->nr++;
+    else
+        lptr->nw++;
+
+    // Enable interrupts
+    restore(ps);
+    return(OK);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     // What is the current state of the lock?
     //
