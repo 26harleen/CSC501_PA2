@@ -27,7 +27,7 @@
 #define PRSUSP      '\006'      /* process is suspended     */
 #define PRWAIT      '\007'      /* process is on semaphore queue*/
 #define PRTRECV     '\010'      /* process is timing a receive  */
-// XXX do i need PRWAIT for locks?
+#define PRLOCK      '\011'      /* process is waiting to acquire lock */
 
 /* miscellaneous process definitions */
 

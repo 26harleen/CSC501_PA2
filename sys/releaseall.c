@@ -1,5 +1,8 @@
 
 
+#include <kernel.h>
+#include <stdio.h>
+#include <q.h>
 #include <lock.h>
 
 LOCAL void unblock(int lock, int item);
@@ -9,11 +12,13 @@ LOCAL void unblock(int lock, int item);
  * of arguments. The number of locks to be released is passed in as
  * the first argument. 
  */
-int releaseall(int numlocks, int ldes1) {
+int releaseall(numlocks, ldes1)
+    int numlocks;
+    int ldes1;
+{
     STATWORD ps;    
     register struct lentry *lptr;
-    int i;
-    int lock;
+    int i, item, lock;
     int firstwrite;
     int firstread;
 
@@ -24,7 +29,7 @@ int releaseall(int numlocks, int ldes1) {
     // one instance of them.
     for (i=0; i<numlocks; i++) {
 
-        lock = ldes1[i];
+        lock = (unsigned long *)(&ldes1) + i;
         lptr = &locks[lock];
         firstwrite = 0;
         firstread  = 0;
@@ -35,10 +40,10 @@ int releaseall(int numlocks, int ldes1) {
         }
 
         // Update the count for this resource
-        if (lptr->nw == 1)
-            lptr->nw--;
+        if (lptr->lnw == 1)
+            lptr->lnw--;
         else
-            lptr->nr--;
+            lptr->lnr--;
 
         // What is the current state of the resource? Possibilities are:
         //
@@ -48,7 +53,7 @@ int releaseall(int numlocks, int ldes1) {
         //      wait queue.
 
         // State 1 - 
-        if (lptr->nr != 0 && lptr->nw == 0) {
+        if (lptr->lnr != 0 && lptr->lnw == 0) {
 
             // Since priority goes from head (lower priority) to
             // tail (higher priority) we will iterate backwards until
@@ -63,7 +68,7 @@ int releaseall(int numlocks, int ldes1) {
                 // This a read with higher priority than highest
                 // priority write. dequeue from lock queue and make it
                 // ready to be scheduled.
-                unlock(lock, item);
+                unblock(lock, item);
 
                 // Move to next item;
                 item = q[item].qprev;
@@ -72,7 +77,7 @@ int releaseall(int numlocks, int ldes1) {
 
         // State 2 - Select highest priority process. If waiting
         // READs/WRITEs have same priority then select READ. 
-        if (lptr->nr == 0 && lptr->nw == 0) {
+        if (lptr->lnr == 0 && lptr->lnw == 0) {
 
             // If there are no waiting procs then nothing to do
             if (isempty(lptr->lqhead))
@@ -140,9 +145,9 @@ LOCAL void unblock(int lock, int item) {
 
     // Increment the counter for this type of lock
     if (q[item].qtype == WRITE)
-        lptr->nw++;
+        lptr->lnw++;
     else
-        lptr->nr++;
+        lptr->lnr++;
 
     // Remove the item from the lock queue and make it 
     // ready to be scheduled.

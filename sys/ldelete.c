@@ -1,4 +1,8 @@
 
+#include <kernel.h>
+#include <stdio.h>
+#include <q.h>
+#include <proc.h>
 #include <lock.h>
 
 /*
@@ -26,7 +30,7 @@ int ldelete(int lockdescriptor) {
     struct lentry *lptr;
 
     disable(ps);
-    if (isbadlock(lock) || locks[lock].lstate==lFREE) {
+    if (isbadlock(lock) || locks[lock].lstate==LFREE) {
         restore(ps);
         return(SYSERR);
     }

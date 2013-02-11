@@ -12,7 +12,7 @@
 //      2 for each semaphore (1 head, 1 tail)
 //      2 for ready queue    (1 head, 1 tail)
 //      2 for sleep queue    (1 head, 1 tail) 
-#define NQENT NPROC + 2*NLOCK + 2*NSEM + 2 + 2
+#define NQENT NPROC + 2*NLOCKS + 2*NSEM + 2 + 2
 #endif
 
 struct  qent    {       /* one for each process plus two for    */

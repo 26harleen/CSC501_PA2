@@ -1,4 +1,8 @@
 
+#include <kernel.h>
+#include <stdio.h>
+#include <q.h>
+#include <proc.h>
 #include <lock.h>
 
 /*
@@ -10,9 +14,12 @@
  */
 int lock(int ldes1, int type, int priority) {
 
-    int ldes1 = lock;
-    int item;
+    STATWORD ps;    
+    struct  lentry  *lptr;
+    struct  pentry  *pptr;
+    int lock = ldes1;
     int wait = 0;
+    int item;
 
     // 1) The lock is free. No process owns lock. 
     //      - The requesting process gets the lock and sets the type 
@@ -22,8 +29,6 @@ int lock(int ldes1, int type, int priority) {
     //      - lock type=WRITE, requesting process must wait 
     //      - lock type=READ, requesting process is granted access if
     //         priority higher than highest priority waiting write.
-    WRITE
-
 
     // If a process has to wait then insert it in the lock's wait list
     // according the the wait priority. Control is returned only when
@@ -45,9 +50,6 @@ int lock(int ldes1, int type, int priority) {
     // If a reader is chosen to have a lock, then all other readers
     // with priority less than highest-priority waiting writer should
     // be admitted. 
-    STATWORD ps;    
-    struct  lentry  *lptr;
-    struct  pentry  *pptr;
 
     // Disable interrupts as this operation needs to be atomic
     disable(ps);
@@ -67,11 +69,11 @@ int lock(int ldes1, int type, int priority) {
     //  3 -  Maybe(nr != 0, nw == 0)  Read
 
     // State 1 - Lock is available. No need to wait.
-    if (lptr->nr == 0 && lptr->nw == 0)
+    if (lptr->lnr == 0 && lptr->lnw == 0)
         wait = 0;
 
     // State 2 - Write already has lock. Add to queue and wait. 
-    if (lptr->nr == 0 && lptr->nw == 1)
+    if (lptr->lnr == 0 && lptr->lnw == 1)
         wait = 1;
 
     // State 3 - Read already has lock. We may be able to grant the
@@ -82,7 +84,7 @@ int lock(int ldes1, int type, int priority) {
     //                equal priority writer 3 times in a row (starvation).
     //
     // Go through all items in the lock q. 
-    if (lptr->nr != 0 && lptr->nw == 0) {
+    if (lptr->lnr != 0 && lptr->lnw == 0) {
         item = q[lptr->lqhead].qnext;
         while (priority < q[item].qkey) {
             if (q[item].qtype == WRITE)
@@ -109,9 +111,9 @@ int lock(int ldes1, int type, int priority) {
 
     // No need to wait. Increment the count and move on.
     if (type == READ)
-        lptr->nr++;
+        lptr->lnr++;
     else
-        lptr->nw++;
+        lptr->lnw++;
 
     // Enable interrupts
     restore(ps);
@@ -135,89 +137,88 @@ int lock(int ldes1, int type, int priority) {
 
 
 
-    // What is the current state of the lock?
-    //
-    //      Available               Type
-    //      -----------------     ----------
-    //  1 -  Yes  (lcnt == 1)        N/A
-    //  2 -  No   (lcnt <  1)       Write
-    //  3 -  Maybe(lcnt <  1)       Read
+////// What is the current state of the lock?
+//////
+//////      Available               Type
+//////      -----------------     ----------
+//////  1 -  Yes  (lcnt == 1)        N/A
+//////  2 -  No   (lcnt <  1)       Write
+//////  3 -  Maybe(lcnt <  1)       Read
 
-    // State 1 - Lock is available. Decrease lcnt and set the type. 
-    if (lptr->lcnt == 1) {
-        lptr->lcnt--;
-        lptr->ltype = type;
-        wait = 0;
-    // make sure next thing done here is return
-    //
+////// State 1 - Lock is available. Decrease lcnt and set the type. 
+////if (lptr->lcnt == 1) {
+////    lptr->lcnt--;
+////    lptr->ltype = type;
+////    wait = 0;
+////// make sure next thing done here is return
+//////
 
-    // State 2 - Write already has lock. Add to queue and wait. 
-    } else if (lptr->lcnt < 1 && lptr->ltype == WRITE) {
+////// State 2 - Write already has lock. Add to queue and wait. 
+////} else if (lptr->lcnt < 1 && lptr->ltype == WRITE) {
 
-        wait = 1;
-
-
-    // State 3 - Read already has lock. We may be able to grant the
-    //           new process access if:
-    //
-    //              - There is not a higher priority writer waiting
-    //              - A reader has not been given access over an
-    //                equal priority writer 3 times in a row (starvation).
-    //
-    // Go through all items in the lock q. 
-    } else if (lptr->lcnt < 1 && lptr->ltype == READ) {
-        item = q[lptr->lqhead].qnext;
-        //while (item != lptr->lqtail) {
-        while (priority < q[item].qkey) {
-            if (q[item].qtype == WRITE) {
-                wait = 1; // There is a higher priority write waiting - must wait
-            }
-            item = q[item].qnext;
-        }
-
-    } else {
-
-        // Should never get here
-        restore(ps);
-        return(SYSERR);
-    }
-
-    if (wait) {
-        lptr->lcnt--;
-        (pptr = &proctab[currpid])->pstate = PRLOCK;
-        pptr->plock = lock;
-        insert(currpid, lptr->lqhead, priority);
-        pptr->plockret = OK; // Will change to DELETED if lock gets deleted
-        resched();           // Context switch happens here
-        restore(ps);
-        return pptr->plockret;
-    }
-
-    // Enable interrupts
-    restore(ps);
-    return(OK);
-}
+////    wait = 1;
 
 
+////// State 3 - Read already has lock. We may be able to grant the
+//////           new process access if:
+//////
+//////              - There is not a higher priority writer waiting
+//////              - A reader has not been given access over an
+//////                equal priority writer 3 times in a row (starvation).
+//////
+////// Go through all items in the lock q. 
+////} else if (lptr->lcnt < 1 && lptr->ltype == READ) {
+////    item = q[lptr->lqhead].qnext;
+////    //while (item != lptr->lqtail) {
+////    while (priority < q[item].qkey) {
+////        if (q[item].qtype == WRITE) {
+////            wait = 1; // There is a higher priority write waiting - must wait
+////        }
+////        item = q[item].qnext;
+////    }
 
-    STATWORD ps;    
-    struct  sentry  *sptr;
-    struct  pentry  *pptr;
+////} else {
 
-    disable(ps);
-    if (isbadsem(sem) || (sptr= &semaph[sem])->sstate==SFREE) {
-        restore(ps);
-        return(SYSERR);
-    }
-    
-    if (--(sptr->semcnt) < 0) {
-        (pptr = &proctab[currpid])->pstate = PRWAIT;
-        pptr->psem = sem;
-        enqueue(currpid,sptr->sqtail);
-        pptr->pwaitret = OK;
-        resched();
-        restore(ps);
-        return pptr->pwaitret;
-    }
-    restore(ps);
-    return(OK);
+////    // Should never get here
+////    restore(ps);
+////    return(SYSERR);
+////}
+
+////if (wait) {
+////    lptr->lcnt--;
+////    (pptr = &proctab[currpid])->pstate = PRLOCK;
+////    pptr->plock = lock;
+////    insert(currpid, lptr->lqhead, priority);
+////    pptr->plockret = OK; // Will change to DELETED if lock gets deleted
+////    resched();           // Context switch happens here
+////    restore(ps);
+////    return pptr->plockret;
+////}
+
+////// Enable interrupts
+////restore(ps);
+////return(OK);
+
+
+
+////STATWORD ps;    
+////struct  sentry  *sptr;
+////struct  pentry  *pptr;
+
+////disable(ps);
+////if (isbadsem(sem) || (sptr= &semaph[sem])->sstate==SFREE) {
+////    restore(ps);
+////    return(SYSERR);
+////}
+////
+////if (--(sptr->semcnt) < 0) {
+////    (pptr = &proctab[currpid])->pstate = PRWAIT;
+////    pptr->psem = sem;
+////    enqueue(currpid,sptr->sqtail);
+////    pptr->pwaitret = OK;
+////    resched();
+////    restore(ps);
+////    return pptr->pwaitret;
+////}
+////restore(ps);
+////return(OK);

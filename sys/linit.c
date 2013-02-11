@@ -11,10 +11,12 @@ int nextlock;
 void linit() {
 
     struct lentry *lptr;
+    int i;
     nextlock = NLOCKS - 1;
 
     for (i=0 ; i < NLOCKS ; i++) {
-        (lptr = &locks[i])->lstate = LFREE;
+        lptr = &locks[i];
+        lptr->lstate = LFREE;
         lptr->lqtail = 1 + (lptr->lqhead = newqueue());
     }
 }

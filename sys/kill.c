@@ -47,11 +47,12 @@ SYSCALL kill(int pid)
 
     case PRWAIT:    semaph[pptr->psem].semcnt++;
 
-//XXX do i need to handle lock here? be careful about "falling
-//through" cases. Make sure we don't change behavior of existing
-//states.
-
     case PRREADY:   dequeue(pid);
+            pptr->pstate = PRFREE;
+            break;
+
+    case PRLOCK:
+            dequeue(pid);
             pptr->pstate = PRFREE;
             break;
 

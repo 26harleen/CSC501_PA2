@@ -1,5 +1,9 @@
 
+#include <kernel.h>
+#include <stdio.h>
 #include <lock.h>
+
+LOCAL int newlock();
 
 /*
  * Creates a lock and returns a lock descriptor that can be used in
@@ -9,36 +13,36 @@
  */
 int lcreate() {
 
-	STATWORD ps;    
-	int	lock;
+    STATWORD ps;    
+    int lock;
 
-	disable(ps);
-	if ((lock=newlock())==SYSERR ) {
-		restore(ps);
-		return(SYSERR);
-	}
-	// lqhead and lqtail were initialized at system startup
-	restore(ps);
-	return(lock);
+    disable(ps);
+    if ((lock=newlock())==SYSERR ) {
+        restore(ps);
+        return(SYSERR);
+    }
+    // lqhead and lqtail were initialized at system startup
+    restore(ps);
+    return(lock);
 }
 
 /*
  * allocate an unused lock and return its index
  */
-LOCAL int newlock()
-{
-	int	lock;
-	int	i;
+LOCAL int newlock() {
+    int lock;
+    int i;
 
-	for (i=0 ; i < NLOCKS ; i++) {
-		lock=nextlock--;
-		if (nextlock < 0)
-			nextlock = NLOCKS-1;
-		if (locks[lock].lstate == LFREE) {
-			locks[lock].lstate = LUSED;
-			locks[lock].lcnt   = 1;
-			return(lock);
-		}
-	}
-	return(SYSERR);
+    for (i=0 ; i < NLOCKS ; i++) {
+        lock=nextlock--;
+        if (nextlock < 0)
+            nextlock = NLOCKS-1;
+        if (locks[lock].lstate == LFREE) {
+            locks[lock].lstate = LUSED;
+            locks[lock].lnr    = 0;
+            locks[lock].lnw    = 0;
+            return(lock);
+        }
+    }
+    return(SYSERR);
 }
