@@ -21,6 +21,8 @@ struct  qent    {       /* one for each process plus two for    */
     int qnext;      /* pointer to next process or tail  */
     int qprev;      /* pointer to previous process or head  */
     int qtype;      // Type: READ/WRITE - used only for locks
+    int qpassed;    // How many times has a write been passed by because there
+                    // was an equal priority read? - used only for locks
 };
 
 extern  struct  qent q[];

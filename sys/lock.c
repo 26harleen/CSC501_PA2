@@ -89,7 +89,7 @@ int lock(int ldes1, int type, int priority) {
                 wait = 1; // There is a higher priority write waiting - must wait
             item = q[item].qnext;
         }
-        //XXX need to handle the starvation thing.
+        //XXX need to handle the starvation thing. maybe?
     }
 
 
@@ -99,6 +99,8 @@ int lock(int ldes1, int type, int priority) {
         pptr->pstate = PRLOCK;
         pptr->plock = lock;
         insert(currpid, lptr->lqhead, priority);
+        q[currpid].qtype   = type;
+        q[currpid].qpassed = 0;
         pptr->plockret = OK; // Will change to DELETED if lock gets deleted
         resched();           // Context switch happens here
         restore(ps);

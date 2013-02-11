@@ -2,6 +2,7 @@
 
 #include <lock.h>
 
+LOCAL void unblock(int lock, int item);
 
 /*
  * Simultaneously release one or more locks. Takes a variable number
@@ -62,14 +63,11 @@ int releaseall(int numlocks, int ldes1) {
                 // This a read with higher priority than highest
                 // priority write. dequeue from lock queue and make it
                 // ready to be scheduled.
-                lptr->nr++;
-                dequeue(item);
-                ready(item, RESCHYES);
+                unlock(lock, item);
 
+                // Move to next item;
                 item = q[item].qprev;
             }
-            restore(ps);
-            return(OK);
         }
 
         // State 2 - Select highest priority process. If waiting
@@ -77,21 +75,22 @@ int releaseall(int numlocks, int ldes1) {
         if (lptr->nr == 0 && lptr->nw == 0) {
 
             // If there are no waiting procs then nothing to do
-            if (isempty(lptr->lqhead)) {
-                restore(ps);
-                return(OK);
-            }
+            if (isempty(lptr->lqhead))
+                continue;
 
             // Choose highest priority waiting proc.
             item = q[lptr->lqtail].qprev;
 
             // Are there multiple with the same priority? If not, no
             // more to do.
-            if (q[item].qkey != q[q[item].qprev].qkey)
-                break;
+            if (q[item].qkey != q[q[item].qprev].qkey) {
+                unblock(lock, item);
+                continue;
+            }
 
-            // Is one of the highest priority waiting procs a write?
-            // If not, no more to do.
+            // Ok, We have multiple items in the queue at the highest
+            // priority. Find the first read (if there is one), and
+            // the first write (if there is one).
             while (q[item].qkey == q[q[item].qprev].qkey) { 
                 if (q[item].qtype == WRITE)
                     firstwrite = firstwrite ? firstwrite : item;
@@ -99,67 +98,55 @@ int releaseall(int numlocks, int ldes1) {
                     firstread = firstread ? firstread : item;
                 item = q[item].qprev;
             }
-            if (!firstwrite)
-                break;
 
-            // Ok, we have a write with equal priority to highest
-            // priority read. If this write has been sidelined 3 times
-            // then choose the write. Else choose the read.
-            if (something)
-                item = firstwrite;
-            else {
-                item = firstread;
-                increment something.
+            // Are all of the equal priority items reads? If so,
+            // choose the first one and continue.
+            if (!firstwrite) {
+                unblock(lock, firstread);
+                continue;
             }
-                
 
+            // Are all of the equal priority items writes? If so,
+            // choose the first one and continue.
+            if (!firstread) {
+                unblock(lock, firstwrite);
+                continue;
+            }
 
+            // Ok, we have at least one read and one write at the
+            // highest priority. If this write has been sidelined 3 times
+            // then choose the write. Else choose the read.
+            // XXX may need to check all writes
+            if (q[firstwrite].qpassed == 3) {
+                unblock(lock, firstwrite);
+            } else {
+                unblock(lock, firstread);
+                q[firstwrite].qpassed++;
+            }
         }
 
-
-
-
-
-
-
-
-
-
-
-        //
-        //      Available               Type
-        //      -----------------     ----------
-        //  1 -  (lcnt == 1) - No more processes waiting on resource
-        //  2 -  (lcnt <  1) - Processes waiting       Write
-        //  1 -  Yes  (lcnt == 1)        N/A
-        //  2 -  No   (lcnt <  1)       Write
-        //  3 -  Maybe(lcnt <  1)       Read
-
-        // State 1 - Resource is available and no more processes waiting.
-        if (lptr->lcnt == 1) {
-            // Nothing to do
-        }
-        // make sure next thing done here is return
-
-        // State 2 - Write already has lock. Add to queue and wait. 
-        } else if (lptr->lcnt < 1 && lptr->ltype == WRITE) {
-
-            wait = 1;
-
-
-        // State 3 - Read already has lock. We may be able to grant the
-        //           new process access if:
-        //
-        //              - There is not a higher priority writer waiting
-        //              - A reader has not been given access over an
-        //                equal priority writer 3 times in a row (starvation).
-        //
-        // Go through all items in the lock q. 
-
-        if ((sptr->semcnt++) < 0)
-            ready(getfirst(sptr->sqhead), RESCHYES);
     }
     restore(ps);
     return(OK);
+}
+
+
+LOCAL void unblock(int lock, int item) {
+
+    register struct lentry *lptr;
+
+    // Get the pointer to the lock entry
+    lptr = &locks[lock];
+
+    // Increment the counter for this type of lock
+    if (q[item].qtype == WRITE)
+        lptr->nw++;
+    else
+        lptr->nr++;
+
+    // Remove the item from the lock queue and make it 
+    // ready to be scheduled.
+    dequeue(item);
+    ready(item, RESCHYES);
 }
     
