@@ -62,11 +62,12 @@ int lock(int ldes1, int type, int priority) {
 
     // What is the current state of the resource?
     //
-    //      Available               Type
-    //      -----------------     ----------
-    //  1 -  Yes  (nr == 0, nw == 0)  N/A
-    //  2 -  No   (nr == 0, nw == 1)  Write
-    //  3 -  Maybe(nr != 0, nw == 0)  Read
+    //      Available                   Request Type
+    //      -----------------          ----------
+    //  1 -  Yes  (nr == 0, nw == 0)     READ/WRITE
+    //  2 -  No   (nr == 0, nw == 1)     READ/WRITE
+    //  3 -  No   (nr != 0, nw == 0)       WRITE
+    //  3 -  Maybe(nr != 0, nw == 0)       READ
 
     // State 1 - Lock is available. No need to wait.
     if (lptr->lnr == 0 && lptr->lnw == 0)
@@ -76,6 +77,11 @@ int lock(int ldes1, int type, int priority) {
     if (lptr->lnr == 0 && lptr->lnw == 1)
         wait = 1;
 
+    // State 3 - Read already has lock and writer requesting lock. Must wait
+    if (lptr->lnr != 0 && lptr->lnw == 0 && type == WRITE)
+        wait = 1;
+
+
     // State 3 - Read already has lock. We may be able to grant the
     //           new process access if:
     //
@@ -84,12 +90,16 @@ int lock(int ldes1, int type, int priority) {
     //                equal priority writer 3 times in a row (starvation).
     //
     // Go through all items in the lock q. 
-    if (lptr->lnr != 0 && lptr->lnw == 0) {
-        item = q[lptr->lqhead].qnext;
-        while (priority < q[item].qkey) {
+    if (lptr->lnr != 0 && lptr->lnw == 0 && type == READ) {
+        // Since priority goes from head (lower priority) to
+        // tail (higher priority) we will iterate backwards until
+        // we hit our priority. If we encounter a waiting WRITE, then
+        // there is a higher priority waiting write and we must wait.
+        item = q[lptr->lqtail].qprev;
+        while (priority < q[item].qkey) { 
             if (q[item].qtype == WRITE)
-                wait = 1; // There is a higher priority write waiting - must wait
-            item = q[item].qnext;
+                wait = 1;         // higher priority write => must wait
+            item = q[item].qprev; // Move to prev item;
         }
         //XXX need to handle the starvation thing. maybe?
     }
@@ -114,6 +124,8 @@ int lock(int ldes1, int type, int priority) {
         lptr->lnr++;
     else
         lptr->lnw++;
+
+    kprintf("lock: READERS %d,\tWRITERS %d\n", lptr->lnr, lptr->lnw);
 
     // Enable interrupts
     restore(ps);

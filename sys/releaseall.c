@@ -18,7 +18,7 @@ int releaseall(numlocks, ldes1)
 {
     STATWORD ps;    
     register struct lentry *lptr;
-    int i, item, lock;
+    int i, item, prev, lock;
     int firstwrite;
     int firstread;
 
@@ -29,7 +29,8 @@ int releaseall(numlocks, ldes1)
     // one instance of them.
     for (i=0; i<numlocks; i++) {
 
-        lock = (unsigned long *)(&ldes1) + i;
+        lock = *((&ldes1) + i);
+        kprintf("checking lock %d\n", lock);
         lptr = &locks[lock];
         firstwrite = 0;
         firstread  = 0;
@@ -64,20 +65,26 @@ int releaseall(numlocks, ldes1)
             while (item != lptr->lqhead) { 
                 if (q[item].qtype == WRITE)
                     break; 
+
+                // Save off prev item (needed because unblock() will 
+                // dequeue item from the list.
+                prev = q[item].qprev;
                 
                 // This a read with higher priority than highest
                 // priority write. dequeue from lock queue and make it
                 // ready to be scheduled.
                 unblock(lock, item);
 
-                // Move to next item;
-                item = q[item].qprev;
+                // Move to prev item;
+                item = prev;
             }
         }
 
         // State 2 - Select highest priority process. If waiting
         // READs/WRITEs have same priority then select READ. 
         if (lptr->lnr == 0 && lptr->lnw == 0) {
+
+// XXX must make this select more than 1 read if more than 1 is available
 
             // If there are no waiting procs then nothing to do
             if (isempty(lptr->lqhead))
@@ -132,6 +139,7 @@ int releaseall(numlocks, ldes1)
 
     }
     restore(ps);
+    resched();
     return(OK);
 }
 
@@ -149,9 +157,11 @@ LOCAL void unblock(int lock, int item) {
     else
         lptr->lnr++;
 
+    kprintf("unblock: READERS %d,\tWRITERS %d\n", lptr->lnr, lptr->lnw);
+
     // Remove the item from the lock queue and make it 
     // ready to be scheduled.
     dequeue(item);
-    ready(item, RESCHYES);
+    ready(item, RESCHNO);
 }
     
