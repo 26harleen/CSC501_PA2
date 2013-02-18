@@ -67,7 +67,7 @@ int lock(int ldes1, int type, int priority) {
     //  1 -  Yes  (nr == 0, nw == 0)     READ/WRITE
     //  2 -  No   (nr == 0, nw == 1)     READ/WRITE
     //  3 -  No   (nr != 0, nw == 0)       WRITE
-    //  3 -  Maybe(nr != 0, nw == 0)       READ
+    //  4 -  Maybe(nr != 0, nw == 0)       READ
 
     // State 1 - Lock is available. No need to wait.
     if (lptr->lnr == 0 && lptr->lnw == 0)
@@ -82,7 +82,7 @@ int lock(int ldes1, int type, int priority) {
         wait = 1;
 
 
-    // State 3 - Read already has lock. We may be able to grant the
+    // State 4 - Read already has lock. We may be able to grant the
     //           new process access if:
     //
     //              - There is not a higher priority writer waiting
@@ -99,6 +99,15 @@ int lock(int ldes1, int type, int priority) {
         while (priority < q[item].qkey) { 
             if (q[item].qtype == WRITE)
                 wait = 1;         // higher priority write => must wait
+            item = q[item].qprev; // Move to prev item;
+        }
+
+        // If there are any equal priority writes bump qpassed 
+        // count and check to see if they have been passed up too
+        // many times already. If so then wait
+        while (priority == q[item].qkey && !wait) { 
+            if (q[item].qtype == WRITE && q[item].qpassed == 3)
+                wait = 1;
             item = q[item].qprev; // Move to prev item;
         }
         //XXX need to handle the starvation thing. maybe?
@@ -119,12 +128,11 @@ int lock(int ldes1, int type, int priority) {
         return pptr->plockret;
     }
 
-    // No need to wait. Increment the count and move on.
-    if (type == READ)
-        lptr->lnr++;
-    else
-        lptr->lnw++;
 
+    // Update the reader/writer counters and possible the
+    // qpassed var for any waiting writers.
+    update_counters(lock, type, priority);
+    
     kprintf("lock: READERS %d,\tWRITERS %d\n", lptr->lnr, lptr->lnw);
 
     // Enable interrupts
@@ -234,3 +242,31 @@ int lock(int ldes1, int type, int priority) {
 ////}
 ////restore(ps);
 ////return(OK);
+
+
+void update_counters(int lock, int type, int priority) {
+    int item;
+    struct  lentry  *lptr;
+    lptr = &locks[lock];
+
+
+    // If this is a read find any equal priority writes 
+    // and bump their passed count.
+    if (type == READ) {
+
+        // Find all equal priority writes and bump count 
+        item = q[lptr->lqtail].qprev;
+        while (item != lptr->lqhead) { 
+            if (priority == q[item].qkey && q[item].qtype == WRITE)
+                q[item].qpassed++;
+            item = q[item].qprev; // Move to prev item;
+        }
+    }
+
+    // Increment the reader/writer count and move on.
+    if (type == READ)
+        lptr->lnr++;
+    else
+        lptr->lnw++;
+
+}
