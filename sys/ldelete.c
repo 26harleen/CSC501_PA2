@@ -19,6 +19,7 @@ int ldelete(int lockdescriptor) {
 
 
 
+    // XXX 
     // Must find a way to make locks unique such that newly created
     // locks that have the same ID as old locks that were deleted
     // don't affect old processes that may have been waiting on the
@@ -38,8 +39,8 @@ int ldelete(int lockdescriptor) {
     lptr->lstate = LFREE;
     if (nonempty(lptr->lqhead)) {
         while((pid=getfirst(lptr->lqhead)) != EMPTY) {
-            proctab[pid].pwaitret = DELETED; // XXX 
-            ready(pid,RESCHNO);              // XXX
+            proctab[pid].plockret = DELETED;
+            ready(pid,RESCHNO);             
         }
         resched();
     }
