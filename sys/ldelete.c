@@ -19,23 +19,21 @@ int ldelete(int lockdescriptor) {
 
 
 
-    // XXX 
-    // Must find a way to make locks unique such that newly created
-    // locks that have the same ID as old locks that were deleted
-    // don't affect old processes that may have been waiting on the
-    // old lock that was deleted. 
-
     STATWORD ps;    
     int pid;
-    int lock = lockdescriptor;
+    int lock = LOCK_INDEX(lockdescriptor);
     struct lentry *lptr;
 
     disable(ps);
-    if (isbadlock(lock) || locks[lock].lstate==LFREE) {
+    lptr = &locks[lock];
+    if (isbadlock(lock) || lptr->lstate==LFREE) {
         restore(ps);
         return(SYSERR);
     }
-    lptr = &locks[lock];
+    if (lptr->lversion != LOCK_VERSION(lockdescriptor)) {
+        restore(ps);
+        return(SYSERR);
+    }
     lptr->lstate = LFREE;
     if (nonempty(lptr->lqhead)) {
         while((pid=getfirst(lptr->lqhead)) != EMPTY) {

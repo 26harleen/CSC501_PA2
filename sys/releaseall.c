@@ -5,14 +5,17 @@
 #include <q.h>
 #include <lock.h>
 
-LOCAL void firstchoice(int lock, int item);
-LOCAL void allowreaders(int lock);
-LOCAL void unblock(int lock, int item);
+LOCAL void firstchoice(int ldes, int item);
+LOCAL void allowreaders(int ldes);
+LOCAL void unblock(int ldes, int item);
 
 /*
  * Simultaneously release one or more locks. Takes a variable number
  * of arguments. The number of locks to be released is passed in as
  * the first argument. 
+ *
+ * Note: the sytax of the first part of the function below allows
+ *       the variable number of arguments.
  */
 int releaseall(numlocks, ldes1)
     int numlocks;
@@ -20,7 +23,7 @@ int releaseall(numlocks, ldes1)
 {
     STATWORD ps;    
     register struct lentry *lptr;
-    int i, item, lock;
+    int i, item, ldes, lock;
     int firstwrite;
     int bestwrite;
     int firstread;
@@ -32,17 +35,29 @@ int releaseall(numlocks, ldes1)
     // one instance of them.
     for (i=0; i<numlocks; i++) {
 
-        lock = *((&ldes1) + i);
-        kprintf("checking lock %d\n", lock);
+        ldes = *((&ldes1) + i);
+        lock = LOCK_INDEX(ldes);
         lptr = &locks[lock];
         firstwrite = 0;
         bestwrite  = 0;
         firstread  = 0;
 
+        // Verify lock index is valid and lock is not somehow
+        // free 
         if (isbadlock(lock) || lptr->lstate==LFREE) {
             restore(ps);
             return(SYSERR);
         }
+
+        // Verify the lock in question matches the current version of the
+        // lock. Otherwise it is from a previous version of the lock and 
+        // SYSERR should be returned
+        if (lptr->lversion != LOCK_VERSION(ldes)) {
+            restore(ps);
+            return(SYSERR);
+        }
+
+        kprintf("checking lock %d\n", lock);
 
         // Update the count for this resource
         if (lptr->lnw == 1)
@@ -103,7 +118,7 @@ int releaseall(numlocks, ldes1)
             // Are there multiple with the same priority? If not, no
             // more to do.
             if (q[item].qkey != q[q[item].qprev].qkey) {
-                firstchoice(lock, item);
+                firstchoice(ldes, item);
                 continue;
             }
 
@@ -130,14 +145,14 @@ int releaseall(numlocks, ldes1)
             // Was there a write that has been passed by too
             // many times already? If so choose it
             if (bestwrite) {
-                firstchoice(lock, bestwrite);
+                firstchoice(ldes, bestwrite);
                 continue;
             }
 
             if (firstread)
-                firstchoice(lock, firstread);
+                firstchoice(ldes, firstread);
             else
-                firstchoice(lock, firstwrite);
+                firstchoice(ldes, firstwrite);
 
         ////// Are all of the equal priority items reads? If so,
         ////// choose the first one and continue.
@@ -230,10 +245,12 @@ int releaseall(numlocks, ldes1)
 }
 
 
-LOCAL void firstchoice(int lock, int item) {
+LOCAL void firstchoice(int ldes, int item) {
     register struct lentry *lptr;
+    int lock;
 
     // Get the pointer to the lock entry
+    lock = LOCK_INDEX(ldes);
     lptr = &locks[lock];
 
     // If this is a read then call allowreaders() 
@@ -241,21 +258,22 @@ LOCAL void firstchoice(int lock, int item) {
     if (q[item].qtype == READ &&
         lptr->lnw     == 0
     )
-        allowreaders(lock);
+        allowreaders(ldes);
 
     if (q[item].qtype == WRITE && 
         lptr->lnw     == 0     &&
         lptr->lnr     == 0
     )
-        unblock(lock, item);
+        unblock(ldes, item);
 }
 
-LOCAL void allowreaders(int lock) {
+LOCAL void allowreaders(int ldes) {
 
     register struct lentry *lptr;
-    int item, prev;
+    int item, prev, lock;
 
     // Get the pointer to the lock entry
+    lock = LOCK_INDEX(ldes);
     lptr = &locks[lock];
 
     // Since priority goes from head (lower priority) to
@@ -275,18 +293,20 @@ LOCAL void allowreaders(int lock) {
         // This a read with higher priority than highest
         // priority write. dequeue from lock queue and make it
         // ready to be scheduled.
-        unblock(lock, item);
+        unblock(ldes, item);
 
         // Move to prev item;
         item = prev;
     }
 }
 
-LOCAL void unblock(int lock, int item) {
+LOCAL void unblock(int ldes, int item) {
 
     register struct lentry *lptr;
+    int lock;
 
     // Get the pointer to the lock entry
+    lock = LOCK_INDEX(ldes);
     lptr = &locks[lock];
 
     // Update the reader/writer counters and possibly the

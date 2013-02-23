@@ -17,7 +17,7 @@ int lock(int ldes1, int type, int priority) {
     STATWORD ps;    
     struct  lentry  *lptr;
     struct  pentry  *pptr;
-    int lock = ldes1;
+    int lock = LOCK_INDEX(ldes1);
     int wait = 0;
     int item;
 
@@ -56,6 +56,14 @@ int lock(int ldes1, int type, int priority) {
 
     // Make sure the lock is valid.
     if (isbadlock(lock) || (lptr= &locks[lock])->lstate==LFREE) {
+        restore(ps);
+        return(SYSERR);
+    }
+
+    // Verify the lock requested matches the current version of the
+    // lock. Otherwise it is from a previous version of the lock and 
+    // SYSERR should be returned
+    if (lptr->lversion != LOCK_VERSION(ldes1)) {
         restore(ps);
         return(SYSERR);
     }
@@ -118,7 +126,7 @@ int lock(int ldes1, int type, int priority) {
     if (wait) {
         pptr = &proctab[currpid];
         pptr->pstate = PRLOCK;
-        pptr->plock = lock;
+        pptr->plock = ldes1;
         insert(currpid, lptr->lqhead, priority);
         q[currpid].qtype   = type;
         q[currpid].qpassed = 0;
@@ -131,7 +139,7 @@ int lock(int ldes1, int type, int priority) {
 
     // Update the reader/writer counters and possible the
     // qpassed var for any waiting writers.
-    update_counters(lock, type, priority);
+    update_counters(ldes1, type, priority);
     
     kprintf("lock: READERS %d,\tWRITERS %d\n", lptr->lnr, lptr->lnw);
 
@@ -244,10 +252,11 @@ int lock(int ldes1, int type, int priority) {
 ////return(OK);
 
 
-void update_counters(int lock, int type, int priority) {
+void update_counters(int ldes1, int type, int priority) {
     int item;
     struct  lentry  *lptr;
-    lptr = &locks[lock];
+    int lock = LOCK_INDEX(ldes1);
+    lptr     = &locks[lock];
 
 
     // If this is a read find any equal priority writes 
