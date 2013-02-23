@@ -65,179 +65,61 @@ int releaseall(numlocks, ldes1)
         else
             lptr->lnr--;
 
-        // What is the current state of the resource? Possibilities are:
-        //
-        //  1 - There are still readers with access. Let all readers
-        //      with priority higher than highest priority writer in.
-        //  2 - No one has access. Select highest priority process in
-        //      wait queue.
-
-        // State 1 - 
- ///////if (lptr->lnr != 0 && lptr->lnw == 0) {
-
- ///////    
- ///////    allowreaders(lock);
-
- ///////  //// Since priority goes from head (lower priority) to
- ///////  //// tail (higher priority) we will iterate backwards until
- ///////  //// we find a waiting WRITE. All READs we encounter before
- ///////  //// then are READs with higher priority than the highest
- ///////  //// priority WRITE. 
- ///////  //item = q[lptr->lqtail].qprev;
- ///////  //while (item != lptr->lqhead) { 
- ///////  //    if (q[item].qtype == WRITE)
- ///////  //        break; 
-
- ///////  //    // Save off prev item (needed because unblock() will 
- ///////  //    // dequeue item from the list.
- ///////  //    prev = q[item].qprev;
- ///////  //    
- ///////  //    // This a read with higher priority than highest
- ///////  //    // priority write. dequeue from lock queue and make it
- ///////  //    // ready to be scheduled.
- ///////  //    unblock(lock, item);
-
- ///////  //    // Move to prev item;
- ///////  //    item = prev;
- ///////  //}
- ///////}
-
- ///////// State 2 - Select highest priority process. If waiting
- ///////// READs/WRITEs have same priority then select READ. 
- ///////if (lptr->lnr == 0 && lptr->lnw == 0) {
-
-// XXX must make this select more than 1 read if more than 1 is available
-//
-            // If there are no waiting procs then nothing to do
-            if (isempty(lptr->lqhead))
-                continue;
-
-            // Choose highest priority waiting proc.
-            item = q[lptr->lqtail].qprev;
-
-            // Are there multiple with the same priority? If not, no
-            // more to do.
-            if (q[item].qkey != q[q[item].qprev].qkey) {
-                firstchoice(ldes, item);
-                continue;
-            }
-
-            // Ok, We have multiple items in the queue at the highest
-            // priority. Find the first read (if there is one), and
-            // the first write (if there is one).
-            while (q[item].qkey == q[q[item].qprev].qkey) { 
-
-                // If there is a write that has been passed by
-                // too many times then keep track of it.
-                if (q[item].qtype == WRITE && q[item].qpassed == 3)
-                    bestwrite = item;
-
-                // Keep record of the first read and the first
-                // write among these equal priority items
-                if (q[item].qtype == WRITE)
-                    firstwrite = firstwrite ? firstwrite : item;
-                else
-                    firstread = firstread ? firstread : item;
-
-                item = q[item].qprev;
-            }
-
-            // Was there a write that has been passed by too
-            // many times already? If so choose it
-            if (bestwrite) {
-                firstchoice(ldes, bestwrite);
-                continue;
-            }
-
-            if (firstread)
-                firstchoice(ldes, firstread);
-            else
-                firstchoice(ldes, firstwrite);
-
-        ////// Are all of the equal priority items reads? If so,
-        ////// choose the first one and continue.
-        ////if (!firstwrite) {
-        ////    firstchoice(lock, firstread);
-        ////    continue;
-        ////}
-
-        ////// Are all of the equal priority items writes? If so,
-        ////// choose the first one and continue.
-        ////if (!firstread) {
-        ////    firstchoice(lock, firstwrite);
-        ////    continue;
-        ////}
-
-        ////// Ok, we have at least one read and one write at the
-        ////// highest priority. If this write has been sidelined 3 times
-        ////// then choose the write. Else choose the read.
-        ////// XXX may need to check all writes
-        ////if (q[firstwrite].qpassed >= 3) {
-        ////    firstchoice(lock, firstwrite);
-        ////} else {
-        ////    firstchoice(lock, firstread);
-        ////}
-
-////////////// If there are no waiting procs then nothing to do
-////////////if (isempty(lptr->lqhead))
-////////////    continue;
-
-////////////// Choose highest priority waiting proc.
-////////////item = q[lptr->lqtail].qprev;
-
-////////////// Are there multiple with the same priority?
-////////////if (q[item].qkey == q[q[item].qprev].qkey) {
-
-////////////    // Ok, We have multiple items in the queue at the highest
-////////////    // priority. Find the first read (if there is one), and
-////////////    // the first write (if there is one).
-////////////    while (q[item].qkey == q[q[item].qprev].qkey) { 
-////////////        if (q[item].qtype == WRITE)
-////////////            firstwrite = firstwrite ? firstwrite : item;
-////////////        else
-////////////            firstread = firstread ? firstread : item;
-////////////        item = q[item].qprev;
-////////////    }
-
-////////////    // Are all of the equal priority items writes? If so,
-////////////    // choose the first one and continue.
-////////////    if (!firstread) {
-////////////        unblock(lock, firstwrite);
-////////////        continue;
-////////////    }
 
 
-////////////    // If we have a write then analyze to see if it has
-////////////    // waited 3 times. 
-////////////    if (firstwrite) {
 
-////////////        // We have at least one read and one write at the 
-////////////        // highest priority. If this write has been sidelined 
-////////////        // 3 times then choose the write. Else bump the count
-////////////        // and we will let the reads go through
-////////////        // XXX may need to check all writes
-////////////        if (q[firstwrite].qpassed == 3) {
-////////////            unblock(lock, firstwrite);
-////////////            continue;
-////////////        } else {
-////////////            q[firstwrite].qpassed++;
-////////////        }
+        // What we will do here is select either a read or a write
+        // as our best candidate for the next lock access and then
+        // call firstchoice() with our candidate. There is logic below
+        // firstchoice() that makes further qualifications. 
 
-////////////    }
-////////////}
+        // If there are no waiting procs then nothing to do
+        if (isempty(lptr->lqhead))
+            continue;
 
+        // Choose highest priority waiting proc.
+        item = q[lptr->lqtail].qprev;
 
-////////////allowreaders(lock);
-
-
-            // Are all of the equal priority items reads? If so,
-            // choose the first one and continue.
-          //if (!firstwrite) {
-          //    unblock(lock, firstread);
-          //    continue;
-          //}
-
+        // Are there multiple with the same priority? If not, no
+        // more to do.
+        if (q[item].qkey != q[q[item].qprev].qkey) {
+            firstchoice(ldes, item);
+            continue;
         }
+
+        // Ok, We have multiple items in the queue at the highest
+        // priority. Find the first read (if there is one), and
+        // the first write (if there is one).
+        while (q[item].qkey == q[q[item].qprev].qkey) { 
+
+            // If there is a write that has been passed by
+            // too many times then keep track of it.
+            if (q[item].qtype == WRITE && q[item].qpassed == 3)
+                bestwrite = item;
+
+            // Keep record of the first read and the first
+            // write among these equal priority items
+            if (q[item].qtype == WRITE)
+                firstwrite = firstwrite ? firstwrite : item;
+            else
+                firstread = firstread ? firstread : item;
+
+            item = q[item].qprev;
+        }
+
+        // Was there a write that has been passed by too
+        // many times already? If so choose it
+        if (bestwrite) {
+            firstchoice(ldes, bestwrite);
+            continue;
+        }
+
+        if (firstread)
+            firstchoice(ldes, firstread);
+        else
+            firstchoice(ldes, firstwrite);
+
+    }
 
     restore(ps);
     resched();
