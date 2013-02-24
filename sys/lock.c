@@ -117,7 +117,7 @@ int lock(int ldes1, int type, int priority) {
         // count and check to see if they have been passed up too
         // many times already. If so then wait
         while (priority == q[item].qkey && !wait) { 
-            if (q[item].qtype == WRITE && q[item].qpassed == 3)
+            if (q[item].qtype == WRITE && q[item].qpassed >= 3)
                 wait = 1;
             item = q[item].qprev; // Move to prev item;
         }
@@ -139,9 +139,11 @@ int lock(int ldes1, int type, int priority) {
     }
 
 
-    // Update the reader/writer counters and possible the
-    // qpassed var for any waiting writers.
-    update_counters(ldes1, type, priority);
+    // Increment the reader/writer count and move on.
+    if (type == READ)
+        lptr->lnr++;
+    else
+        lptr->lnw++;
     
     kprintf("lock: READERS %d,\tWRITERS %d\n", lptr->lnr, lptr->lnw);
 
@@ -159,16 +161,18 @@ void update_counters(int ldes1, int type, int priority) {
     lptr     = &locks[lock];
 
 
-    // If this is a read find any equal priority writes 
-    // and bump their passed count.
+    // If this is a read find any the first equal priority write 
+    // and bump the passed count.
     if (type == READ) {
 
-        // Find all equal priority writes and bump count 
-        item = q[lptr->lqtail].qprev;
-        while (item != lptr->lqhead) { 
-            if (priority == q[item].qkey && q[item].qtype == WRITE)
+        // Find first equal priority write and bump count 
+        item = q[lptr->lqhead].qnext;
+        while (item != lptr->lqtail) { 
+            if (priority == q[item].qkey && q[item].qtype == WRITE) {
                 q[item].qpassed++;
-            item = q[item].qprev; // Move to prev item;
+                break;
+            }
+            item = q[item].qnext; // Move to next item;
         }
     }
 

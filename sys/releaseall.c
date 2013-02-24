@@ -27,6 +27,7 @@ int releaseall(numlocks, ldes1)
     int firstwrite;
     int bestwrite;
     int firstread;
+    int priority;
 
     // Disable interrupts - needs to be atomic
     disable(ps);
@@ -41,6 +42,7 @@ int releaseall(numlocks, ldes1)
         firstwrite = 0;
         bestwrite  = 0;
         firstread  = 0;
+        priority   = 0;
 
         // Verify lock index is valid and lock is not somehow
         // free 
@@ -90,11 +92,12 @@ int releaseall(numlocks, ldes1)
         // Ok, We have multiple items in the queue at the highest
         // priority. Find the first read (if there is one), and
         // the first write (if there is one).
-        while (q[item].qkey == q[q[item].qprev].qkey) { 
+        priority = q[item].qkey;
+        while (q[item].qkey == priority) { 
 
             // If there is a write that has been passed by
             // too many times then keep track of it.
-            if (q[item].qtype == WRITE && q[item].qpassed == 3)
+            if (q[item].qtype == WRITE && q[item].qpassed >= 3)
                 bestwrite = item;
 
             // Keep record of the first read and the first
@@ -152,21 +155,38 @@ LOCAL void firstchoice(int ldes, int item) {
 LOCAL void allowreaders(int ldes) {
 
     register struct lentry *lptr;
-    int item, prev, lock;
+    int item, prev, lock, threshold;
 
     // Get the pointer to the lock entry
     lock = LOCK_INDEX(ldes);
     lptr = &locks[lock];
 
-    // Since priority goes from head (lower priority) to
-    // tail (higher priority) we will iterate backwards until
-    // we find a waiting WRITE. All READs we encounter before
-    // then are READs with higher priority than the highest
-    // priority WRITE. 
+    threshold = 0;
+
+
+    // Find the priority of the highest priority write. Since 
+    // priority goes from head (lower priority) to tail (higher 
+    // priority) we will iterate backwards until we find a waiting 
+    // WRITE. 
     item = q[lptr->lqtail].qprev;
     while (item != lptr->lqhead) { 
-        if (q[item].qtype == WRITE)
+        if (q[item].qtype == WRITE) {
+            threshold = q[item].qkey;
             break; 
+        }
+        // Move to prev item;
+        item = q[item].qprev;
+    }
+
+
+    // Now unblock any reads with priority higher or equal to the
+    // highest priority write.
+    item = q[lptr->lqtail].qprev;
+    while ((q[item].qkey >= threshold) && (item != lptr->lqhead)) { 
+        if (q[item].qtype == WRITE) {
+            item = q[item].qprev;
+            continue; 
+        }
 
         // Save off prev item (needed because unblock() will 
         // dequeue item from the list.
@@ -193,7 +213,7 @@ LOCAL void unblock(int ldes, int item) {
 
     // Update the reader/writer counters and possibly the
     // qpassed var for any waiting writers.
-    update_counters(lock, q[item].qtype, q[item].qkey);
+    update_counters(ldes, q[item].qtype, q[item].qkey);
 
     kprintf("unblock: READERS %d,\tWRITERS %d\n", lptr->lnr, lptr->lnw);
 
