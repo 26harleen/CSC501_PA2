@@ -82,51 +82,62 @@ void combo(char *msg, int lck1, int lck2, int lprio1, int lprio2) {
 // Starvation Test
 void starve_test()
 {
-    int     lck;
-    int     rd1, rd2, rd3, rd4, rd5, rd6;
-    int     wr1;
+    int lck;
+    int rd1, rd2, rd3, rd4, rd5, rd6;
+    int wr1, wr2, wr3, wr4;
 
-    kprintf("\nStarve Test: wait on locks with priority. Expected order of"
-    " lock acquisition is:\n" 
-    "reader A,\n"
-    "reader B,\n"
-    "reader D,\n"
-    "reader E,\n"
-    "writer C,\n"
-    "reader F,\n"
-    "reader G,\n");
+    kprintf("\nStarve Test: Make sure writer C20 gets priority before reader H20.\n"
+    "Expected order of lock acquisition is:\n" 
+    "writer A20,\n"
+    "reader B20,\n"
+    "writer D30,\n"
+    "reader E20,\n"
+    "writer F30,\n"
+    "reader G20,\n"
+    "writer C20,\n"
+    "reader H20,\n");
     lck  = lcreate ();
   
 
-    rd1 = create(reader, 2000, 20, "reader", 3, "reader A", lck, 20);
-    rd2 = create(reader, 2000, 20, "reader", 3, "reader B", lck, 20);
-    rd3 = create(reader, 2000, 20, "reader", 3, "reader D", lck, 20);
-    rd4 = create(reader, 2000, 20, "reader", 3, "reader E", lck, 20);
-    rd5 = create(reader, 2000, 20, "reader", 3, "reader F", lck, 20);
-    rd6 = create(reader, 2000, 20, "reader", 3, "reader G", lck, 20);
-    wr1 = create(writer, 2000, 20, "writer", 3, "writer C", lck, 20);
+    rd1 = create(reader, 2000, 20, "reader", 3, "reader B20", lck, 20);
+    rd2 = create(reader, 2000, 20, "reader", 3, "reader E20", lck, 20);
+    rd3 = create(reader, 2000, 20, "reader", 3, "reader G20", lck, 20);
+    rd4 = create(reader, 2000, 20, "reader", 3, "reader H20", lck, 20);
 
-    kprintf("-start reader A, and Writer C, then sleep 1s. lock granted to reader A\n");
-    resume(rd1);
+    wr1 = create(writer, 2000, 20, "writer", 3, "writer A20", lck, 20);
+    wr2 = create(writer, 2000, 20, "writer", 3, "writer D30", lck, 30);
+    wr3 = create(writer, 2000, 20, "writer", 3, "writer F30", lck, 30);
+    wr4 = create(writer, 2000, 20, "writer", 3, "writer C20", lck, 20);
+
+    kprintf("-start writer A20. Sleep 2s\n");
     resume(wr1);
-    sleep (1);
+    sleep(2);
 
 
-    kprintf("-start reader B. Sleep 1s\n");
-    resume (rd2);
-    sleep(1);
-    kprintf("-start reader D. Sleep 1s\n");
-    resume (rd3);
-    sleep(1);
-    kprintf("-start reader E. Sleep 1s\n");
-    resume (rd4);
-    sleep(1);
-    kprintf("-start reader F. Sleep 1s\n");
-    resume (rd5);
-    sleep(1);
-    kprintf("-start reader G. Sleep 1s\n");
-    resume (rd6);
-    sleep(1);
+    kprintf("-start reader B20 and writer C20. Sleep 3s\n");
+    resume(rd1);
+    resume(wr4);
+    sleep(3);
+
+    kprintf("-start writer D30. Sleep 2s\n");
+    resume(wr2);
+    sleep(2);
+
+    kprintf("-start reader E20. Sleep 3s\n");
+    resume(rd2);
+    sleep(3);
+
+    kprintf("-start writer F30. Sleep 3s\n");
+    resume(wr3);
+    sleep(3);
+
+    kprintf("-start reader G20. Sleep 3s\n");
+    resume(rd3);
+    sleep(3);
+
+    kprintf("-start reader H20. Sleep 10s\n");
+    resume(rd4);
+
 
 
     sleep (10);
@@ -231,7 +242,7 @@ void lock_reuse_test()
 
     // Create original lock
     lck = lcreate();
-    kprintf("Original Lock: %d\t Lock Index: %d\n", lck, LOCK_INDEX(lck));
+    //kprintf("Original Lock: %d\t Lock Index: %d\n", lck, LOCK_INDEX(lck));
 
     // Create processes that use original lock
     rd1 = create(reader, 2000, 20, "reader", 3, "reader A", lck, 20);
@@ -262,7 +273,7 @@ void lock_reuse_test()
 
     // Create a new process to use the new lock spot. 
     rd3 = create(reader, 2000, 20, "reader", 3, "reader D", lck, 20);
-    kprintf("Final Lock: %d\t Lock Index: %d\n", lck, LOCK_INDEX(lck));
+    //kprintf("Final Lock: %d\t Lock Index: %d\n", lck, LOCK_INDEX(lck));
 
     // Start reader B: Should get returned SYSERR since the lock it
     // uses was already deleted and a new lock is using that index
