@@ -59,7 +59,9 @@ int releaseall(numlocks, ldes1)
             return(SYSERR);
         }
 
+#if DEBUG
         kprintf("checking lock %d\n", lock);
+#endif
 
         // Update the count for this resource
         if (lptr->lnw == 1)
@@ -215,7 +217,9 @@ LOCAL void unblock(int ldes, int item) {
     // qpassed var for any waiting writers.
     update_counters(ldes, q[item].qtype, q[item].qkey);
 
+#if DEBUG
     kprintf("unblock: READERS %d,\tWRITERS %d\n", lptr->lnr, lptr->lnw);
+#endif
 
     // Remove the item from the lock queue and make it 
     // ready to be scheduled.

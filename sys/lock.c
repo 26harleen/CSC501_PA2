@@ -145,7 +145,9 @@ int lock(int ldes1, int type, int priority) {
     else
         lptr->lnw++;
     
+#if DEBUG
     kprintf("lock: READERS %d,\tWRITERS %d\n", lptr->lnr, lptr->lnw);
+#endif
 
     // Enable interrupts
     restore(ps);
