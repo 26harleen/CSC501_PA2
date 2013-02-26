@@ -1,3 +1,5 @@
+#include <bitvector.h>
+
 
 #ifndef _LOCK_H_
 #define _LOCK_H_
@@ -29,6 +31,8 @@ struct lentry {
     int  lqhead;    // q index of head of list
     int  lqtail;    // q index of tail of list
     unsigned int lversion;  // the version of the lock (starts at 0)
+    struct bit_structure lbs;
+    struct bit_structure *lbsptr;
 };
 
 extern struct lentry locks[];
