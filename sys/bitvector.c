@@ -1,15 +1,51 @@
 
-// The following will choose where to get bitvector.h.
+// The following will set up a few things depending on whether we are
+// compiling for XINU or compiling to test on a Linux system.
 #ifdef TEST
 #include "bitvector.h"
+#include <stdlib.h>
+#define MALLOC(x) malloc(x);
 #else
+#include <kernel.h>
 #include <bitvector.h>
+#define MALLOC(x) getmem(x); // XINU has getmem(), not malloc()
 #endif
 
 #define BIT_SET 1
 #define BIT_CLR 2
 #define BIT_GET 3
 
+
+bs_ptr bs_alloc(int num_bits) {
+
+	// local variables
+    int i;
+	bs_ptr bsptr;
+	bitvector bv;
+
+	// Allocate space for the bit_structure
+	bsptr = (bs_ptr) MALLOC(sizeof(struct bit_structure));
+    if (!bsptr)
+        return NULL;
+
+	// Allocate space for the bitvector. In order to know how many 
+	// bytes we need, we need to allocate num_bits/8 + 1. 
+	bv = (bitvector) MALLOC((num_bits / 8) + 1);
+    if (!bv)
+        return NULL;
+
+	// Assign bvptr into the bit_structure
+	bsptr->bv = bv;
+
+	// Initialize size for bit_structure
+	bsptr->size = num_bits;
+
+    // Make sure all bits are 0
+    for(i=0; i < num_bits; i++)
+        clr_bit(bsptr, i);
+
+	return bsptr;
+}
 
 /*
  * Generic function to operate on bit structure.

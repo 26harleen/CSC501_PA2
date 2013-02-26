@@ -5,12 +5,14 @@
 #include <stdio.h>
 #include "bitvector.h"
 
-struct bit_structure bs;
-
 
 void main() {
 
-    bs_ptr bsptr = &bs;
+    bs_ptr bsptr;
+   
+    if (!(bsptr = bs_alloc(75))) {
+       printf("Failed to create bitvector\n");
+    }
    
     printf("Setting bits 0, 10, 21, 33, 50, 74\n");
 

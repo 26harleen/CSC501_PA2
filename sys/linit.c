@@ -1,4 +1,6 @@
 
+#include <kernel.h>
+#include <proc.h>
 #include <q.h>
 #include <lock.h>
 
@@ -17,7 +19,7 @@ void linit() {
     for (i=0 ; i < NLOCKS ; i++) {
         lptr = &locks[i];
         lptr->lstate   = LFREE;
-        lptr->lbsptr   = &lptr->lbs;
+        lptr->lbsptr   = bs_alloc(NPROC);
         lptr->lversion = 0;
         lptr->lqtail   = 1 + (lptr->lqhead = newqueue());
     }
