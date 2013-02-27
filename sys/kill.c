@@ -8,6 +8,8 @@
 #include <io.h>
 #include <q.h>
 #include <stdio.h>
+#include <lock.h>
+#include <pinh.h>
 
 /*------------------------------------------------------------------------
  * kill  --  kill a process and remove it from the system
@@ -52,6 +54,10 @@ SYSCALL kill(int pid)
             break;
 
     case PRLOCK:
+            // Update lppriomax for the lock (max priority of all waiting procs)
+            update_lppriomax(LOCK_INDEX(pptr->plock));
+            // Update pinh for all procs that hold this lock.
+            update_pinh(LOCK_INDEX(pptr->plock));
             dequeue(pid);
             pptr->pstate = PRFREE;
             break;

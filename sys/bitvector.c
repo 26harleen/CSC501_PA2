@@ -91,6 +91,9 @@ int _access_bit(bs_ptr bsptr, int bit, int op) {
         case BIT_CLR:
             bv[block] &= ~(1 << offset);
     }
+
+    // Should never get here
+    return 0;
 }
 
 /*

@@ -80,8 +80,7 @@ void combo(char *msg, int lck1, int lck2, int lprio1, int lprio2) {
 }
 
 // Starvation Test
-void starve_test()
-{
+void starve_test() {
     int lck;
     int rd1, rd2, rd3, rd4, rd5, rd6;
     int wr1, wr2, wr3, wr4;
@@ -145,8 +144,7 @@ void starve_test()
 }
 
 // Priority Test - Reads wait if higher priority writer
-void write_prio_test()
-{
+void write_prio_test() {
     int     lck;
     int     rd1, rd2, rd3, rd4;
     int     wr1;
@@ -175,7 +173,7 @@ void write_prio_test()
     resume(wr1);
 
 
-    kprintf("-start reader B, D, E. reader B is granted lock.\n");
+    kprintf("-start reader B, D, E.\n");
     resume (rd2);
     resume (rd3);
     resume (rd4);

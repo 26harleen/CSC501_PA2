@@ -1,5 +1,7 @@
 /* proc.h - isbadpid */
 
+#include <bitvector.h>
+
 #ifndef _PROC_H_
 #define _PROC_H_
 
@@ -39,6 +41,8 @@
 
 #define isbadpid(x) (x<=0 || x>=NPROC)
 
+#define EFFECTIVE_PRIO(x) (((x)->pinh > (x)->pprio) ? (x)->pinh : (x)->pprio)
+
 /* process table entry */
 
 struct  pentry  {
@@ -63,6 +67,9 @@ struct  pentry  {
     int pwaitret;
     int plock;              // lock ID, if process waiting for lock
     int plockret;           // store return code from lock()
+    int pinh;               // inherited priority 
+    bs_ptr locks_bsptr;     // bitmask structure that keeps up with all
+                            // locks held by this process
 };
 
 

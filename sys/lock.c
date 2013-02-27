@@ -4,6 +4,7 @@
 #include <q.h>
 #include <proc.h>
 #include <lock.h>
+#include <pinh.h>
 
 /*
  * Acquisition of lock for read/write
@@ -133,10 +134,24 @@ int lock(int ldes1, int type, int priority) {
         q[currpid].qtype   = type;
         q[currpid].qpassed = 0;
         pptr->plockret = OK; // Will change to DELETED if lock gets deleted
+
+        // Update lppriomax for this lock (max priority of all waiting procs)
+        update_lppriomax(lock);
+        // Update pinh for all procs that hold this lock.
+        update_pinh(lock);
+        
         resched();           // Context switch happens here
         restore(ps);
         return pptr->plockret;
     }
+
+
+    // Update the lock's bitvector so that it can know what procs hold it
+    set_bit(lptr->lprocs_bsptr, currpid);
+    // Update the proc's bitvector so that it can know what locks it holds
+    set_bit(proctab[currpid].locks_bsptr, lock);
+    // Update pinh for this process 
+    update_priority(currpid);
 
 
     // Increment the reader/writer count and move on.

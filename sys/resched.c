@@ -5,45 +5,65 @@
 #include <proc.h>
 #include <q.h>
 
-unsigned long currSP;	/* REAL sp of current process */
+unsigned long currSP;   /* REAL sp of current process */
 extern int ctxsw(int, int, int, int);
 /*-----------------------------------------------------------------------
  * resched  --  reschedule processor to highest priority ready process
  *
- * Notes:	Upon entry, currpid gives current process id.
- *		Proctab[currpid].pstate gives correct NEXT state for
- *			current process if other than PRREADY.
+ * Notes:   Upon entry, currpid gives current process id.
+ *      Proctab[currpid].pstate gives correct NEXT state for
+ *          current process if other than PRREADY.
  *------------------------------------------------------------------------
  */
 int resched()
 {
-	register struct	pentry	*optr;	/* pointer to old process entry */
-	register struct	pentry	*nptr;	/* pointer to new process entry */
+    register struct pentry  *optr;  /* pointer to old process entry */
+    register struct pentry  *nptr;  /* pointer to new process entry */
+    int item, max, maxitem;
+    max     = 0;
+    maxitem = 0; // Null Process
 
-	/* no switch needed if current process priority higher than next*/
+    // 
+    optr = &proctab[currpid];
+    
+    // If nothing in ready queue then move on.
+    if ((optr->pstate == PRCURR) && isempty(rdyhead))
+        return OK;
 
-	if ( ( (optr= &proctab[currpid])->pstate == PRCURR) &&
-	   (lastkey(rdytail)<optr->pprio)) {
-		return(OK);
-	}
-	
-	/* force context switch */
+    // Find the process with the greatest priority
+    item = q[rdytail].qprev;
+    while (item != rdyhead) {
+        if (EFFECTIVE_PRIO(&proctab[item]) > max) {
+            max     = EFFECTIVE_PRIO(&proctab[item]);
+            maxitem = item;
+        }
+        item = q[item].qprev;
+    }
 
-	if (optr->pstate == PRCURR) {
-		optr->pstate = PRREADY;
-		insert(currpid,rdyhead,optr->pprio);
-	}
+    /* no switch needed if current process priority higher than next*/
+    if ((optr->pstate == PRCURR) && (max < EFFECTIVE_PRIO(optr))) {
+        return(OK);
+    }
+    
+    /* force context switch */
 
-	/* remove highest priority process at end of ready list */
+    if (optr->pstate == PRCURR) {
+        optr->pstate = PRREADY;
+        insert(currpid,rdyhead,optr->pprio);
+    }
 
-	nptr = &proctab[ (currpid = getlast(rdytail)) ];
-	nptr->pstate = PRCURR;		/* mark it currently running	*/
-#ifdef	RTCLOCK
-	preempt = QUANTUM;		/* reset preemption counter	*/
+    //kprintf("Choosing pid %d with effective priority %d\n", maxitem, max);
+
+    currpid = maxitem;           // Update the currpid global 
+    dequeue(maxitem);            // Remove the process from the ready list  
+    nptr = &proctab[currpid];    // Get a pointer to the PCB(pentry) for the proc
+    nptr->pstate = PRCURR;       // mark it currently running
+#ifdef  RTCLOCK
+    preempt = QUANTUM;      /* reset preemption counter */
 #endif
-	
-	ctxsw((int)&optr->pesp, (int)optr->pirmask, (int)&nptr->pesp, (int)nptr->pirmask);
-	
-	/* The OLD process returns here when resumed. */
-	return OK;
+    
+    ctxsw((int)&optr->pesp, (int)optr->pirmask, (int)&nptr->pesp, (int)nptr->pirmask);
+    
+    /* The OLD process returns here when resumed. */
+    return OK;
 }

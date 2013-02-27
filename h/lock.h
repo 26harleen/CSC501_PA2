@@ -31,7 +31,10 @@ struct lentry {
     int  lqhead;    // q index of head of list
     int  lqtail;    // q index of tail of list
     unsigned int lversion;  // the version of the lock (starts at 0)
-    bs_ptr lbsptr;
+    int lppriomax;  // Maximum process priority among all processes waiting in 
+                    // the locks wait queue
+    bs_ptr lprocs_bsptr; // bit structure that represents all of the processes currently
+                         // holding the lock. 
 };
 
 extern struct lentry locks[];

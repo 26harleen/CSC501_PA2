@@ -18,9 +18,9 @@ void linit() {
 
     for (i=0 ; i < NLOCKS ; i++) {
         lptr = &locks[i];
-        lptr->lstate   = LFREE;
-        lptr->lbsptr   = bs_alloc(NPROC);
-        lptr->lversion = 0;
-        lptr->lqtail   = 1 + (lptr->lqhead = newqueue());
+        lptr->lstate       = LFREE;
+        lptr->lprocs_bsptr = bs_alloc(NPROC);
+        lptr->lversion     = 0;
+        lptr->lqtail       = 1 + (lptr->lqhead = newqueue());
     }
 }
