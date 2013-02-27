@@ -45,6 +45,5 @@ int  lcreate();
 int  ldelete(int lockdescriptor);
 int  lock(int ldes1, int type, int priority);
 int  releaseall(int numlocks, int ldes1, ...);
-void update_counters(int ldes1, int type, int priority);
 
 #endif

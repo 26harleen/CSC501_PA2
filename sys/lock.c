@@ -169,34 +169,3 @@ int lock(int ldes1, int type, int priority) {
     return(OK);
 }
 
-
-
-void update_counters(int ldes1, int type, int priority) {
-    int item;
-    struct  lentry  *lptr;
-    int lock = LOCK_INDEX(ldes1);
-    lptr     = &locks[lock];
-
-
-    // If this is a read find any the first equal priority write 
-    // and bump the passed count.
-    if (type == READ) {
-
-        // Find first equal priority write and bump count 
-        item = q[lptr->lqhead].qnext;
-        while (item != lptr->lqtail) { 
-            if (priority == q[item].qkey && q[item].qtype == WRITE) {
-                q[item].qpassed++;
-                break;
-            }
-            item = q[item].qnext; // Move to next item;
-        }
-    }
-
-    // Increment the reader/writer count and move on.
-    if (type == READ)
-        lptr->lnr++;
-    else
-        lptr->lnw++;
-
-}

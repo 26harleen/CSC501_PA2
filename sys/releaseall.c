@@ -1,5 +1,3 @@
-
-
 #include <kernel.h>
 #include <proc.h>
 #include <stdio.h>
@@ -10,6 +8,7 @@
 LOCAL void firstchoice(int ldes, int item);
 LOCAL void allowreaders(int ldes);
 LOCAL void unblock(int ldes, int item);
+LOCAL void bump_qpassed(int ldes1, int priority);
 
 /*
  * Simultaneously release one or more locks. Takes a variable number
@@ -132,7 +131,6 @@ int releaseall(numlocks, ldes1)
             firstchoice(ldes, firstread);
         else
             firstchoice(ldes, firstwrite);
-
     }
 
     restore(ps);
@@ -166,34 +164,39 @@ LOCAL void firstchoice(int ldes, int item) {
 LOCAL void allowreaders(int ldes) {
 
     register struct lentry *lptr;
-    int item, prev, lock, threshold;
+    int item, prev, lock, maxwrite, maxread;
 
     // Get the pointer to the lock entry
     lock = LOCK_INDEX(ldes);
     lptr = &locks[lock];
 
-    threshold = 0;
+    maxwrite = 0;
+    maxread  = 0;
 
 
-    // Find the priority of the highest priority write. Since 
-    // priority goes from head (lower priority) to tail (higher 
-    // priority) we will iterate backwards until we find a waiting 
-    // WRITE. 
+    // Find the priority of the highest priority write and highest
+    // priority read. Since priority goes from head (lower priority)
+    // to tail (higher priority) we will iterate backwards.
     item = q[lptr->lqtail].qprev;
     while (item != lptr->lqhead) { 
-        if (q[item].qtype == WRITE) {
-            threshold = q[item].qkey;
-            break; 
-        }
+        if (q[item].qtype == WRITE && !maxwrite)
+            maxwrite = q[item].qkey;
+        if (q[item].qtype == READ && !maxread)
+            maxread = q[item].qkey;
+
         // Move to prev item;
         item = q[item].qprev;
     }
+
+    // Bump the qpassed count for the first writer that matches
+    // the maximum priority reader.
+    bump_qpassed(ldes, maxread);
 
 
     // Now unblock any reads with priority higher or equal to the
     // highest priority write.
     item = q[lptr->lqtail].qprev;
-    while ((q[item].qkey >= threshold) && (item != lptr->lqhead)) { 
+    while ((q[item].qkey >= maxwrite) && (item != lptr->lqhead)) { 
         if (q[item].qtype == WRITE) {
             item = q[item].qprev;
             continue; 
@@ -222,9 +225,12 @@ LOCAL void unblock(int ldes, int item) {
     lock = LOCK_INDEX(ldes);
     lptr = &locks[lock];
 
-    // Update the reader/writer counters and possibly the
-    // qpassed var for any waiting writers.
-    update_counters(ldes, q[item].qtype, q[item].qkey);
+    // Update the reader/writer counters
+    if (q[item].qtype == READ)
+        lptr->lnr++;
+    else
+        lptr->lnw++;
+
 
     // Update the lock's bitvector so that it can know what procs hold it
     set_bit(lptr->lprocs_bsptr, item);
@@ -246,4 +252,22 @@ LOCAL void unblock(int ldes, int item) {
     ready(item, RESCHNO);
 }
 
+
+LOCAL void bump_qpassed(int ldes1, int priority) {
+    int item;
+    struct  lentry  *lptr;
+    int lock = LOCK_INDEX(ldes1);
+    lptr     = &locks[lock];
+
+
+    // Find first equal priority write and bump count 
+    item = q[lptr->lqhead].qnext;
+    while (item != lptr->lqtail) { 
+        if (priority == q[item].qkey && q[item].qtype == WRITE) {
+            q[item].qpassed++;
+            break;
+        }
+        item = q[item].qnext; // Move to next item;
+    }
+}
     
