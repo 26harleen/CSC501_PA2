@@ -52,7 +52,9 @@ int resched()
         insert(currpid,rdyhead,optr->pprio);
     }
 
-    //kprintf("Choosing pid %d with effective priority %d\n", maxitem, max);
+#if DEBUG
+    kprintf("Choosing pid %d with effective priority %d\n", maxitem, max);
+#endif
 
     currpid = maxitem;           // Update the currpid global 
     dequeue(maxitem);            // Remove the process from the ready list  

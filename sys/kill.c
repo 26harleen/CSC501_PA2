@@ -54,11 +54,14 @@ SYSCALL kill(int pid)
             break;
 
     case PRLOCK:
+            // Remove proc from the lock queue
+            dequeue(pid);
+            // Clear the bit from the lprocs_bsptr
+            clr_bit(locks[LOCK_INDEX(pptr->plock)].lprocs_bsptr, pid);
             // Update lppriomax for the lock (max priority of all waiting procs)
             update_lppriomax(LOCK_INDEX(pptr->plock));
             // Update pinh for all procs that hold this lock.
             update_pinh(LOCK_INDEX(pptr->plock));
-            dequeue(pid);
             pptr->pstate = PRFREE;
             break;
 
