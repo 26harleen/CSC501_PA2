@@ -136,9 +136,7 @@ void pinh_kill_test() {
 
     kprintf("\nPriority Inheritance kill Test\n"
     " lock acquisition is:\n" 
-    "writer A\n"
-    "writer B\n"
-    "reader C\n");
+    "writer A\n");
     lck = lcreate();
 
     // Create a process that is always ready to run at priority 15
@@ -168,7 +166,7 @@ void pinh_kill_test() {
     kill(rd1);
     
     sleep (10);
-    kprintf ("Test finished, check order of acquisition!\n");
+    kprintf ("Test finished, Verify only Writer A acquired lock!\n");
 }
 
 // Basic Priority Inheritance Test (locks)
@@ -209,15 +207,6 @@ void basic_pinh_locks_test() {
     kprintf("-start reader C (pprio 40, lprio 20), then sleep 1s.\n");
     resume(rd1);
     sleep(1);
-    
-  //kprintf("-kill reader B, then sleep 1s\n");
-  //kill (rd2);
-  //sleep (1);
-  //
-
-  //kprintf("-kill reader A, then sleep 1s\n");
-  //kill (rd1);
-  //sleep(1);
     
     sleep (10);
     kprintf ("Test finished, check order of acquisition!\n");
