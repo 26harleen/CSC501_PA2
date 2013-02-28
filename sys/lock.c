@@ -113,15 +113,6 @@ int lock(int ldes1, int type, int priority) {
                 wait = 1;         // higher priority write => must wait
             item = q[item].qprev; // Move to prev item;
         }
-
-        // If there are any equal priority writes bump qpassed 
-        // count and check to see if they have been passed up too
-        // many times already. If so then wait
-        while (priority == q[item].qkey && !wait) { 
-            if (q[item].qtype == WRITE && q[item].qpassed >= 3)
-                wait = 1;
-            item = q[item].qprev; // Move to prev item;
-        }
     }
 
 

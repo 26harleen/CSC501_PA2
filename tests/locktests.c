@@ -83,30 +83,32 @@ void combo(char *msg, int lck1, int lck2, int lprio1, int lprio2) {
 void starve_test() {
     int lck;
     int rd1, rd2, rd3, rd4, rd5, rd6;
-    int wr1, wr2, wr3, wr4;
+    int wr1, wr2, wr3, wr4, wr5;
 
-    kprintf("\nStarve Test: Make sure writer C20 gets priority before reader H20.\n"
+    kprintf("\nStarve Test: Make sure writer C20 gets priority before reader I20.\n"
     "Expected order of lock acquisition is:\n" 
     "writer A20,\n"
-    "reader B20,\n"
+    "reader B20,\n"//bump
     "writer D30,\n"
-    "reader E20,\n"
+    "reader E20,\n"//bump
     "writer F30,\n"
-    "reader G20,\n"
+    "reader G20,\n"//bump
+    "writer H30,\n"
     "writer C20,\n"
-    "reader H20,\n");
+    "reader I20,\n");
     lck  = lcreate ();
   
 
     rd1 = create(reader, 2000, 20, "reader", 3, "reader B20", lck, 20);
     rd2 = create(reader, 2000, 20, "reader", 3, "reader E20", lck, 20);
     rd3 = create(reader, 2000, 20, "reader", 3, "reader G20", lck, 20);
-    rd4 = create(reader, 2000, 20, "reader", 3, "reader H20", lck, 20);
+    rd4 = create(reader, 2000, 20, "reader", 3, "reader I20", lck, 20);
 
     wr1 = create(writer, 2000, 20, "writer", 3, "writer A20", lck, 20);
     wr2 = create(writer, 2000, 20, "writer", 3, "writer D30", lck, 30);
     wr3 = create(writer, 2000, 20, "writer", 3, "writer F30", lck, 30);
-    wr4 = create(writer, 2000, 20, "writer", 3, "writer C20", lck, 20);
+    wr4 = create(writer, 2000, 20, "writer", 3, "writer H30", lck, 30);
+    wr5 = create(writer, 2000, 20, "writer", 3, "writer C20", lck, 20);
 
     kprintf("-start writer A20. Sleep 2s\n");
     resume(wr1);
@@ -115,7 +117,7 @@ void starve_test() {
 
     kprintf("-start reader B20 and writer C20. Sleep 3s\n");
     resume(rd1);
-    resume(wr4);
+    resume(wr5);
     sleep(3);
 
     kprintf("-start writer D30. Sleep 2s\n");
@@ -134,7 +136,11 @@ void starve_test() {
     resume(rd3);
     sleep(3);
 
-    kprintf("-start reader H20. Sleep 10s\n");
+    kprintf("-start writer H30. Sleep 3s\n");
+    resume(wr4);
+    sleep(3);
+
+    kprintf("-start reader I20. Sleep 15s\n");
     resume(rd4);
 
 
